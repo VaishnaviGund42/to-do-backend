@@ -13,8 +13,12 @@ const FILE_PATH = "./data.json";
 
 // Read Todos
 const readTodos = () => {
-  const data = fs.readFileSync(FILE_PATH);
-  return JSON.parse(data);
+  try {
+    const data = fs.readFileSync(FILE_PATH, "utf8");
+    return data.trim() === "" ? [] : JSON.parse(data);
+  } catch (error) {
+    return [];
+  }
 };
 
 // Write Todos
@@ -25,18 +29,26 @@ const writeTodos = (data) => {
 
 // CREATE TODO
 app.post("/api/todos", (req, res) => {
-  const todos = readTodos();
+  try {
+    if (!req.body.title) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+    
+    const todos = readTodos();
 
-  const newTodo = {
-    id: Date.now(),
-    title: req.body.title,
-    completed: false,
-  };
+    const newTodo = {
+      id: Date.now(),
+      title: req.body.title,
+      completed: false,
+    };
 
-  todos.push(newTodo);
-  writeTodos(todos);
+    todos.push(newTodo);
+    writeTodos(todos);
 
-  res.status(201).json(newTodo);
+    res.status(201).json(newTodo);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create todo" });
+  }
 });
 
 
@@ -64,15 +76,24 @@ app.put("/api/todos/:id", (req, res) => {
 
 // DELETE TODO
 app.delete("/api/todos/:id", (req, res) => {
-  let todos = readTodos();
+  try {
+    let todos = readTodos();
 
-  const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id);
 
-  todos = todos.filter((todo) => todo.id !== id);
+    const initialLength = todos.length;
+    todos = todos.filter((todo) => todo.id !== id);
 
-  writeTodos(todos);
+    if (todos.length === initialLength) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
 
-  res.json({ message: "Todo Deleted" });
+    writeTodos(todos);
+
+    res.json({ message: "Todo Deleted" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete todo" });
+  }
 });
 
 
