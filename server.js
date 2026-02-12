@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -8,18 +9,23 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-const FILE_PATH = "./data.json";
+const FILE_PATH = path.join(__dirname, "data.json");
 
+// Ensure file exists
+if (!fs.existsSync(FILE_PATH)) {
+  fs.writeFileSync(FILE_PATH, "[]");
+}
+
+// Root Route
 app.get("/", (req, res) => {
   res.send("Todo Backend is Running 🚀");
 });
-
 
 // Read Todos
 const readTodos = () => {
   try {
     const data = fs.readFileSync(FILE_PATH, "utf8");
-    return data.trim() === "" ? [] : JSON.parse(data);
+    return JSON.parse(data);
   } catch (error) {
     return [];
   }
@@ -30,14 +36,13 @@ const writeTodos = (data) => {
   fs.writeFileSync(FILE_PATH, JSON.stringify(data, null, 2));
 };
 
-
 // CREATE TODO
 app.post("/api/todos", (req, res) => {
   try {
     if (!req.body.title) {
       return res.status(400).json({ error: "Title is required" });
     }
-    
+
     const todos = readTodos();
 
     const newTodo = {
@@ -55,45 +60,51 @@ app.post("/api/todos", (req, res) => {
   }
 });
 
-
 // GET ALL TODOS
 app.get("/api/todos", (req, res) => {
-  const todos = readTodos();
-  res.json(todos);
+  res.json(readTodos());
 });
-
 
 // UPDATE TODO
 app.put("/api/todos/:id", (req, res) => {
-  let todos = readTodos();
+  try {
+    let todos = readTodos();
+    const id = parseInt(req.params.id);
 
-  const id = parseInt(req.params.id);
+    let found = false;
 
-  todos = todos.map((todo) =>
-    todo.id === id ? { ...todo, ...req.body } : todo
-  );
+    todos = todos.map((todo) => {
+      if (todo.id === id) {
+        found = true;
+        return { ...todo, ...req.body };
+      }
+      return todo;
+    });
 
-  writeTodos(todos);
-  res.json({ message: "Todo Updated" });
+    if (!found) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
+
+    writeTodos(todos);
+    res.json({ message: "Todo Updated" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update todo" });
+  }
 });
-
 
 // DELETE TODO
 app.delete("/api/todos/:id", (req, res) => {
   try {
     let todos = readTodos();
-
     const id = parseInt(req.params.id);
 
-    const initialLength = todos.length;
-    todos = todos.filter((todo) => todo.id !== id);
+    const newTodos = todos.filter((todo) => todo.id !== id);
 
-    if (todos.length === initialLength) {
+    if (newTodos.length === todos.length) {
       return res.status(404).json({ error: "Todo not found" });
     }
 
-    writeTodos(todos);
-
+    writeTodos(newTodos);
     res.json({ message: "Todo Deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete todo" });
